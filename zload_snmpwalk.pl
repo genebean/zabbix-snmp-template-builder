@@ -2,11 +2,13 @@
 ####################################
 #
 #       zload_snmpwalk
-#    Version 1.1
+#   Version 1.1a
 #       Author: Steven Dossett
 #               Dennis Ploeger
+#               Nicola Canepa
 #       Email: sd at panath.com
 #              develop at dieploegers.de
+#              nicola.canepa.74 at gmail.com
 #
 ####################################
 # Disclaimer:
@@ -113,7 +115,7 @@ OPTIONS:
         -h history      How long to keep polling history, default is 7
         -t trends       How long to keep polling trends, default is 365
         -s server       Database server, default is localhost
-    -R num        Use num indexes from the right as the description (default: 2)
+    -R num          Use num indexes from the right as the description (default: 2)
         -d database   Database, default is zabbix
         -u user         Database-user
         -P password     Database-password
@@ -319,15 +321,22 @@ while(my $line = <SWALK>)
  
                 # Output XML
  
+                print "\t\t\t<groups><group>Templates</group></groups>\n";
+                print "\t\t\t<items>\n";
                 print "\t\t\t".'<item type="'.$zabbix_type.'" key="'.$zabbix_description.'" value_type="'.$zabbix_value_type.'">'."\n";
                 print "\t\t\t\t<description>$zabbix_description</description>\n";
                 print "\t\t\t\t<delay>$zabbix_delay</delay>\n";
                 print "\t\t\t\t<history>$zabbix_history</history>\n";
                 print "\t\t\t\t<trends>$zabbix_trends</trends>\n";
                 print "\t\t\t\t<snmp_community>$community</snmp_community>\n";
+                print "\t\t\t\t<snmpv3_securityname>$community</snmpv3_securityname>\n";
+                print "\t\t\t\t<snmpv3_securitylevel>0</snmpv3_securitylevel>\n";
+                print "\t\t\t\t<snmpv3_authpassphrase></snmpv3_authpassphrase>\n";
+                print "\t\t\t\t<snmpv3_privpassphrase></snmpv3_privpassphrase>\n";
                 print "\t\t\t\t<snmp_oid>$zabbix_oid</snmp_oid>\n";
                 print "\t\t\t\t<snmp_port>$zabbix_port</snmp_port>\n";
                 print "\t\t\t</item>\n";
+                print "\t\t\t</items>\n";
  
         }
 }
