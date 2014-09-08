@@ -2,16 +2,30 @@
 ####################################
 #
 #       zload_snmpwalk
-#   Version 1.1a
+#
+#   Version 2.0.0
 #       Author: Steven Dossett
 #               Dennis Ploeger
 #               Nicola Canepa
+#               Gene Liverman
+#
 #       Email: sd at panath.com
 #              develop at dieploegers.de
 #              nicola.canepa.74 at gmail.com
+#              me at technicalissues.us
 #
 ####################################
-# Disclaimer:
+# Disclaimer for v2.0.0:
+# This script has been updated so that the XML output works in Zabbix 2.2.6.
+# Testing was done by running the following command and then importing the 
+# resulting XML file into Zabbix via the web interface:
+#
+#   $ zload_snmpwalk -v1 -mALL -x public PrinterMIB 10.10.27.6 printmib > PrinterMIB.xml
+# 
+# The version number was extended to 3 digits so as to more accurately represent
+# the types of changes expected to come as more testing is done.
+#
+# Disclaimer for v1.1a:
 # This script has only been used with ZABBIX 1.1alpha6. It isn't thoroughly
 # tested. It isn't very efficient. It may eat your database or cause other
 # unintentional harm. Be careful and use at your own risk.
@@ -263,16 +277,30 @@ if ($mode eq "sql") {
  
 } else {
  
-    my $date = `date +%d.%m.%y`;
-    my $time = `date +%H:%M`;
+    my $date = `date -u +%Y-%m-%dT%H:%M:%SZ`;
  
     chop($date);
-    chop($time);
  
-    print '<zabbix_export version="1.0" date="'.$date.'" time="'.$time.'">'."\n";
-    print "\t<hosts>\n";
-    print "\t\t".'<host name="'.$zabbix_id.'">'."\n";
-    print "\t\t\t<status>3</status>\n";
+    print '<?xml version="1.0"?>'."\n";
+    print '<zabbix_export>'."\n";
+    print '  <version>2.0</version>'."\n";
+    print '  <date>'.$date.'</date>'."\n";
+    print '  <groups>'."\n";
+    print '    <group>'."\n";
+    print '      <name>Templates</name>'."\n";
+    print '    </group>'."\n";
+    print '  </groups>'."\n";
+    print '  <templates>'."\n";
+    print '    <template>'."\n";
+    print '      <template>'.$zabbix_id.'</template>'."\n";
+    print '        <name>'.$zabbix_id.'</name>'."\n";
+    print '        <groups>'."\n";
+    print '          <group>'."\n";
+    print '            <name>Templates</name>'."\n";
+    print '          </group>'."\n";
+    print '        </groups>'."\n";
+    print '        <applications/>'."\n";
+    print '        <items>'."\n";
  
 }
  
@@ -282,63 +310,86 @@ if ($debug) { print "Processing Data from $input "; }
  
 while(my $line = <SWALK>)
 {
-        my $zabbix_value_type;
-        my $zabbix_description;
-        my $zabbix_oid;
- 
-        next if ($line !~ /(.iso.org.dod.*) = (.*):/ );
-        #$1 = oid string to translate
-        #$2 = integer, string or other snmp type
-        #More snmp "character" types should be added
- 
-        $zabbix_description = get_zabbix_description($1);
-        $zabbix_oid = get_zabbix_oid($1);
-        $zabbix_value_type = get_zabbix_value_type($2);
- 
- 
-        if ($TEST)
+    my $zabbix_value_type;
+    my $zabbix_description;
+    my $zabbix_oid;
+
+    next if ($line !~ /(.iso.org.dod.*) = (.*):/ );
+    #$1 = oid string to translate
+    #$2 = integer, string or other snmp type
+    #More snmp "character" types should be added
+
+    $zabbix_description = get_zabbix_description($1);
+    $zabbix_oid = get_zabbix_oid($1);
+    $zabbix_value_type = get_zabbix_value_type($2);
+
+
+    if ($TEST)
+    {
+        if (($tcounter++ % 10) == 0)
         {
-                if (($tcounter++ % 10) == 0)
-                {
-                        print "\ntype\tsnmp_community\tsnmp_oid\tsnmp_port\t",
-                                "hostid\tdescription\tkey_\tdelay\t",
-                                "history\ttrends\tvalue_type\n";
-                }
-                print "$zabbix_type\t$community\t$zabbix_oid\t$zabbix_port\t",
-                        "$zabbix_id\t$zabbix_description\t",
-                        "$zabbix_description\t$zabbix_delay\t",
-                        "$zabbix_history\t$zabbix_trends\t",
-                        "$zabbix_value_type\n";
+            print "\ntype\tsnmp_community\tsnmp_oid\tsnmp_port\t",
+                "hostid\tdescription\tkey_\tdelay\t",
+                "history\ttrends\tvalue_type\n";
         }
-        elsif ($mode eq 'sql')
-        {
-                print "." if (($tcounter++ % 10) == 0 );
-                $sql->execute($zabbix_type, $community, $zabbix_oid, $zabbix_port,
-                $zabbix_id, $zabbix_description, $zabbix_description,
-                $zabbix_delay, $zabbix_history, $zabbix_trends,
-                $zabbix_value_type) || die "Insert Failure: $sql->strerror\n";
-        } else {
- 
-                # Output XML
- 
-                print "\t\t\t<groups><group>Templates</group></groups>\n";
-                print "\t\t\t<items>\n";
-                print "\t\t\t".'<item type="'.$zabbix_type.'" key="'.$zabbix_description.'" value_type="'.$zabbix_value_type.'">'."\n";
-                print "\t\t\t\t<description>$zabbix_description</description>\n";
-                print "\t\t\t\t<delay>$zabbix_delay</delay>\n";
-                print "\t\t\t\t<history>$zabbix_history</history>\n";
-                print "\t\t\t\t<trends>$zabbix_trends</trends>\n";
-                print "\t\t\t\t<snmp_community>$community</snmp_community>\n";
-                print "\t\t\t\t<snmpv3_securityname>$community</snmpv3_securityname>\n";
-                print "\t\t\t\t<snmpv3_securitylevel>0</snmpv3_securitylevel>\n";
-                print "\t\t\t\t<snmpv3_authpassphrase></snmpv3_authpassphrase>\n";
-                print "\t\t\t\t<snmpv3_privpassphrase></snmpv3_privpassphrase>\n";
-                print "\t\t\t\t<snmp_oid>$zabbix_oid</snmp_oid>\n";
-                print "\t\t\t\t<snmp_port>$zabbix_port</snmp_port>\n";
-                print "\t\t\t</item>\n";
-                print "\t\t\t</items>\n";
- 
-        }
+        print "$zabbix_type\t$community\t$zabbix_oid\t$zabbix_port\t",
+            "$zabbix_id\t$zabbix_description\t",
+            "$zabbix_description\t$zabbix_delay\t",
+            "$zabbix_history\t$zabbix_trends\t",
+            "$zabbix_value_type\n";
+    }
+    elsif ($mode eq 'sql')
+    {
+            print "." if (($tcounter++ % 10) == 0 );
+            $sql->execute($zabbix_type, $community, $zabbix_oid, $zabbix_port,
+            $zabbix_id, $zabbix_description, $zabbix_description,
+            $zabbix_delay, $zabbix_history, $zabbix_trends,
+            $zabbix_value_type) || die "Insert Failure: $sql->strerror\n";
+    } else {
+
+        # Output XML
+
+        print '          <item>'."\n";
+        print '            <name>'.$zabbix_description.'</name>'."\n";
+        print '            <type>'.$zabbix_type.'</type>'."\n";
+        print '            <snmp_community>{$SNMP_COMMUNITY}</snmp_community>'."\n";
+        print '            <multiplier>0</multiplier>'."\n";
+        print '            <snmp_oid>'.$zabbix_oid.'</snmp_oid>'."\n";
+        print '            <key>'.$zabbix_description.'</key>'."\n";
+        print '            <delay>'.$zabbix_delay.'</delay>'."\n";
+        print '            <history>'.$zabbix_history.'</history>'."\n";
+        print '            <trends>'.$zabbix_trends.'</trends>'."\n";
+        print '            <status>0</status>'."\n";
+        print '            <value_type>'.$zabbix_value_type.'</value_type>'."\n";
+        print '            <allowed_hosts/>'."\n";
+        print '            <units/>'."\n";
+        print '            <delta>0</delta>'."\n";
+        print '            <snmpv3_contextname/>'."\n";
+        print '            <snmpv3_securityname>{$SNMP_COMMUNITY}</snmpv3_securityname>'."\n";
+        print '            <snmpv3_securitylevel>0</snmpv3_securitylevel>'."\n";
+        print '            <snmpv3_authprotocol>0</snmpv3_authprotocol>'."\n";
+        print '            <snmpv3_authpassphrase/>'."\n";
+        print '            <snmpv3_privprotocol>0</snmpv3_privprotocol>'."\n";
+        print '            <snmpv3_privpassphrase/>'."\n";
+        print '            <formula>1</formula>'."\n";
+        print '            <delay_flex/>'."\n";
+        print '            <params/>'."\n";
+        print '            <ipmi_sensor/>'."\n";
+        print '            <data_type>0</data_type>'."\n";
+        print '            <authtype>0</authtype>'."\n";
+        print '            <username/>'."\n";
+        print '            <password/>'."\n";
+        print '            <publickey/>'."\n";
+        print '            <privatekey/>'."\n";
+        print '            <port/>'."\n";
+        print '            <description/>'."\n";
+        print '            <inventory_link>0</inventory_link>'."\n";
+        print '            <applications/>'."\n";
+        print '            <valuemap/>'."\n";
+        print '            <logtimefmt/>'."\n";
+        print '          </item>'."\n";
+
+    }
 }
 close(SWALK);
  
@@ -348,13 +399,22 @@ if ($mode eq "sql") {
     $dbh->disconnect();
  
 } else {
- 
-    print "\t\t</host>\n";
-    print "\t</hosts>\n";
-    print "</zabbix_export>\n";
+
+    print '      </items>'."\n";
+    print '      <discovery_rules/>'."\n";
+    print '      <macros>'."\n";
+    print '        <macro>'."\n";
+    print '          <macro>{$SNMP_COMMUNITY}</macro>'."\n";
+    print '          <value>'.$community.'</value>'."\n";
+    print '        </macro>'."\n";
+    print '      </macros>'."\n";
+    print '      <templates/>'."\n";
+    print '      <screens/>'."\n";
+    print '    </template>'."\n";
+    print '  </templates>'."\n";
+    print '</zabbix_export>'."\n";
  
 }
  
 if ($debug) { print "Finished\n"; }
 exit 0;
-
